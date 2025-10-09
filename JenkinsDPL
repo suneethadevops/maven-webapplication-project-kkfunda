@@ -1,78 +1,81 @@
 pipeline {
     agent any
-    tools
-    {
-      maven "maven-3.9.6"
-    }
-     stages
-     {
-        stage('git checkout')
-        {
-          steps
-          {
-             notifyBuild('STARTED')
-             git branch: 'development', url: 'https://github.com/kkdevopsb6/maven-webapplication-project-kkfunda.git'
-          }
-        } //stage  close
-        stage('build')
-        {
-        steps
-        {
-           sh "mvn clean package"
-        }
-        }  //stage close
-        stage('SQ Report')
-        {
-           steps
-           {
-           sh "mvn sonar:sonar"
-           }
-        } //stage ending
-        stage('Uploadinto Nexus')
-        {
-           steps
-           {
-              sh "mvn deploy"
-           }
-        }  //stage ending
 
-        stage('tomcat deploy')
-        {
-        steps {
-                sh """
-            curl -u kk:password \
-            --upload-file /var/lib/jenkins/workspace/jio-Declarative-PL-dev/target/maven-web-application.war \
-            "http://13.201.194.180:8080/manager/text/deploy?path=/maven-web-application&update=true"
-        """
+    tools {
+        maven "maven-3.9.6"
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                notifyBuild('STARTED')
+                git branch: 'development', url: 'https://github.com/suneethadevopsb6/maven-webapplication-project-kkfunda.git'
             }
-        }  //stage ending
+        }
 
-     }  // stages closing
+        stage('Build') {
+            steps {
+                sh "mvn clean package"
+            }
+        }
 
+        stage('SonarQube Report') {
+            steps {
+                sh "mvn sonar:sonar"
+            }
+        }
 
+        stage('Upload to Nexus') {
+            steps {
+                sh "mvn deploy"
+            }
+        }
 
-post {
-  success {
+        stage('Approval Before Deployment') {
+            steps {
+                script {
+                    // Notify on Slack about pending approval
+                    slackSend(color: '#FFFF00', message: "⏳ *WAITING FOR APPROVAL*: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'\n${env.BUILD_URL}\nPlease approve deployment within 40 seconds.")
 
-    script
-    {
-     notifyBuild(currentBuild.result)
+                    try {
+                        // Wait for up to 40 seconds for manual approval
+                        timeout(time: 40, unit: 'SECONDS') {
+                            input message: 'Approve deployment to Tomcat?', ok: 'Deploy'
+                        }
+                    } catch (err) {
+                        // Notify about timeout or abort
+                        slackSend(color: '#FF0000', message: "❌ *BUILD ABORTED*: No approval received within 40 seconds for Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'\n${env.BUILD_URL}")
+                        error("Deployment approval not received in time. Aborting the build.")
+                    }
+                }
+            }
+        }
+
+        stage('Tomcat Deploy') {
+            steps {
+                sh """
+                curl -u kk:password \
+                --upload-file /var/lib/jenkins/workspace/${env.JOB_NAME}/target/maven-web-application.war \
+                "http://18.171.184.53:8080/manager/text/deploy?path=/maven-web-application&update=true"
+                """
+            }
+        }
     }
-    
-  }
-  failure {
 
-  script
-  {
-    notifyBuild(currentBuild.result)
+    post {
+        success {
+            script {
+                notifyBuild(currentBuild.result)
+            }
+        }
 
-  }
-   
-  }
+        failure {
+            script {
+                notifyBuild(currentBuild.result)
+            }
+        }
+    }
 }
-
-
-} // pipeline ending
 
 // Notification method
 def notifyBuild(String buildStatus = 'STARTED') {
@@ -95,7 +98,3 @@ def notifyBuild(String buildStatus = 'STARTED') {
 
     slackSend(color: colorCode, message: summary)
 }
-
-
-
-
