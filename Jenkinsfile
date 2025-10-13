@@ -42,7 +42,7 @@ pipeline {
                 sh """
             curl -u kk:password \
             --upload-file /var/lib/jenkins/workspace/DLPL/target/maven-web-application.war \
-            "http://65.2.35.68:8080/manager/text/deploy?path=/maven-web-application&update=true"
+            "http://3.9.164.25:8080//manager/text/deploy?path=/maven-web-application&update=true"
         """
             }
         }  //stage ending
@@ -51,7 +51,7 @@ pipeline {
 
 
 
-post {
+// post {
   success {
 
     script
@@ -94,7 +94,7 @@ def notifyBuild(String buildStatus = 'STARTED') {
     }
 
     slackSend(color: colorCode, message: summary)
-}
+}//
 
 
 
